@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu:rust-latest
+    runs-on: ubuntu-latest
     container:
       image: clux/muslrust:stable
     strategy:
