@@ -1,4 +1,4 @@
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use surf::Client;
 use tide::{Request, Response};
@@ -67,7 +67,7 @@ async fn get_metrics(start: i64, end: i64, step: i32) -> surf::Result<String> {
   let start = Utc.timestamp_opt(start, 0).single().unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
   let end = Utc.timestamp_opt(end, 0).single().unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
   
-  let url = format!("http://localhost:9090/api/v1/query_range?query=sum by (cpu) (rate(node_cpu_seconds_total{{job=\"node\", mode!=\"idle\"}}[30s])) * 100&start={}&end={}&step={}m", start, end, step);
+  let url = format!("http://{}:9090/api/v1/query_range?query=sum by (cpu) (rate(node_cpu_seconds_total{{job=\"node\", mode!=\"idle\"}}[30s])) * 100&start={}&end={}&step={}m", *crate::METRICS_HOST, start, end, step);
   let Metrics { data } = client.get(url).await?.body_json().await?;
 
   Ok(data.result[0].values[0].value.clone())
