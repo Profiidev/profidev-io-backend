@@ -20,13 +20,11 @@ async fn main() -> tide::Result<()> {
     tide::log::with_level(LevelFilter::from_str(&log_level).unwrap_or(LevelFilter::Info));
 
     let cors = CorsMiddleware::new()
-        .allow_origin(Origin::from("https://profidev.io"))
-        .allow_origin(Origin::from("https://*.profidev.io"))
-        .allow_origin(Origin::from("https://localhost:3000"));
+        .allow_origin(Origin::from("*"));
         
     let mut app = tide::new();
     app.with(cors).with(TokenAuth{});
-    app.at("/metrics").get(metrics::metrics);
+    app.at("/metrics").post(metrics::metrics);
     app.listen("0.0.0.0:8080").await?;
     Ok(())
 }
