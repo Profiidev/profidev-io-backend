@@ -37,13 +37,13 @@ struct Key {
 
 #[derive(Deserialize, Debug)]
 struct Data {
-  time: i32,
+  time: i64,
   value: String,
 }
 
 #[derive(Serialize, Debug)]
 struct MetricsRes {
-  cores: HashMap<String, Vec<(i32, String)>>,
+  cores: HashMap<String, Vec<(i64, f32)>>,
 }
 
 pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
@@ -57,10 +57,23 @@ pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
     }
 
     let metrics = get_metrics(start, end, step).await?;
-    let mut cores = HashMap::new();
+    println!("{:?}", metrics.data.result.len());
+    let mut cores: HashMap<String, Vec<(i64, f32)>> = HashMap::new();
     for core in metrics.data.result {
-      cores.insert(core.metric.cpu, core.values.iter().map(|d| (d.time, d.value.clone())).collect());
+      cores.insert(core.metric.cpu, core.values.iter().map(|d| (d.time, d.value.parse::<f32>().unwrap())).collect());
     }
+    
+    let mut total: Vec<(i64, f32)> = Vec::new();
+    for (_core, values) in cores.iter() {
+      for (i, value) in values.iter().enumerate() {
+        if i >= total.len() {
+          total.push((value.0, value.1));
+        } else {
+          total[i].1 += value.1;
+        }
+      }
+    }
+    cores.insert("total".to_string(), total);
     let res_body = MetricsRes { cores };
 
     let mut res = Response::new(200);
@@ -74,5 +87,5 @@ async fn get_metrics(start: i64, end: i64, step: i32) -> surf::Result<Metrics> {
   let end = Utc.timestamp_opt(end, 0).single().unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
   
   let url = format!("http://{}:9090/api/v1/query_range?query=sum by (cpu) (rate(node_cpu_seconds_total{{job=\"node\", mode!=\"idle\"}}[30s])) * 100&start={}&end={}&step={}m", *crate::METRICS_HOST, start, end, step);
-  Ok(Metrics { data: client.get(url).await?.body_json().await? })
+  Ok(client.get(url).await?.body_json().await?)
 }
