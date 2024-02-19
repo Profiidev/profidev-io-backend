@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::{TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use surf::Client;
@@ -10,11 +12,6 @@ struct MetricsReq {
   start: i64,
   end: i64,
   step: i32,
-}
-
-#[derive(Serialize, Debug)]
-struct MetricsRes {
-  test: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -44,6 +41,11 @@ struct Data {
   value: String,
 }
 
+#[derive(Serialize, Debug)]
+struct MetricsRes {
+  cores: HashMap<String, Vec<(i32, String)>>,
+}
+
 pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
     if !has_permissions(&req, Permissions::Metrics as i32) {
         return Ok(tide::Response::new(403));
@@ -55,20 +57,22 @@ pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
     }
 
     let metrics = get_metrics(start, end, step).await?;
-    let res_body = MetricsRes { test: metrics };
+    let mut cores = HashMap::new();
+    for core in metrics.data.result {
+      cores.insert(core.metric.cpu, core.values.iter().map(|d| (d.time, d.value.clone())).collect());
+    }
+    let res_body = MetricsRes { cores };
 
     let mut res = Response::new(200);
     res.set_body(tide::Body::from_json(&res_body)?);
     Ok(res)
 }
 
-async fn get_metrics(start: i64, end: i64, step: i32) -> surf::Result<String> {
+async fn get_metrics(start: i64, end: i64, step: i32) -> surf::Result<Metrics> {
   let client = Client::new();
   let start = Utc.timestamp_opt(start, 0).single().unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
   let end = Utc.timestamp_opt(end, 0).single().unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
   
   let url = format!("http://{}:9090/api/v1/query_range?query=sum by (cpu) (rate(node_cpu_seconds_total{{job=\"node\", mode!=\"idle\"}}[30s])) * 100&start={}&end={}&step={}m", *crate::METRICS_HOST, start, end, step);
-  let Metrics { data } = client.get(url).await?.body_json().await?;
-
-  Ok(data.result[0].values[0].value.clone())
+  Ok(Metrics { data: client.get(url).await?.body_json().await? })
 }
