@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use tide::log::LevelFilter;
+use tide::{log::LevelFilter, security::{CorsMiddleware, Origin}};
 
 use crate::auth::TokenAuth;
 
@@ -18,9 +18,15 @@ async fn main() -> tide::Result<()> {
     
     let log_level = std::env::var("RUST_LOG_LEVEL").unwrap_or("info".to_string());
     tide::log::with_level(LevelFilter::from_str(&log_level).unwrap_or(LevelFilter::Info));
-    
+
+    let cors = CorsMiddleware::new()
+        .allow_origin(Origin::from("https://profidev.io"))
+        .allow_origin(Origin::from("https://*.profidev.io"))
+        .allow_origin(Origin::from("https://localhost:3000"));
+        
     let mut app = tide::new();
-    app.at("/metrics").with(TokenAuth{}).get(metrics::metrics);
+    app.with(cors).with(TokenAuth{});
+    app.at("/metrics").get(metrics::metrics);
     app.listen("0.0.0.0:8080").await?;
     Ok(())
 }
