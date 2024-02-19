@@ -73,6 +73,9 @@ pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
         }
       }
     }
+    for value in total.iter_mut() {
+      value.1 /= cores.len() as f32;
+    }
     cores.insert("total".to_string(), total);
     let res_body = MetricsRes { cores };
 
