@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::{TimeZone, Utc};
+use chrono::{TimeZone, Timelike, Utc};
 use serde::{Deserialize, Serialize};
 use surf::Client;
 use tide::{Request, Response};
@@ -86,8 +86,8 @@ pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
 
 async fn get_metrics(start: i64, end: i64, step: i32) -> surf::Result<Metrics> {
   let client = Client::new();
-  let start = Utc.timestamp_opt(start, 0).single().unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-  let end = Utc.timestamp_opt(end, 0).single().unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+  let start = Utc.timestamp_opt(start, 0).single().unwrap_or_default().with_second(0).unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+  let end = Utc.timestamp_opt(end, 0).single().unwrap_or_default().with_second(0).unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
   
   let url = format!("http://{}:9090/api/v1/query_range?query=sum by (cpu) (rate(node_cpu_seconds_total{{job=\"node\", mode!=\"idle\"}}[30s])) * 100&start={}&end={}&step={}m", *crate::METRICS_HOST, start, end, step);
   Ok(client.get(url).await?.body_json().await?)
