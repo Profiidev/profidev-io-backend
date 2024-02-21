@@ -1399,6 +1399,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "lazy_static",
+ "percent-encoding",
  "serde",
  "surf",
  "tide",
