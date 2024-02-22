@@ -96,7 +96,7 @@ pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
         tide::Body::from_json(&res_body)?
       },
       MetricsType::Memory => {
-        let metrics = get_metrics::<Metrics<Empty>>("(1 - (node_memory_MemFree_bytes + node_memory_Cached_bytes) / node_memory_MemTotal_bytes)", start, end, step).await?;
+        let metrics = get_metrics::<Metrics<Empty>>("100 * (1 - (node_memory_MemFree_bytes + node_memory_Cached_bytes) / node_memory_MemTotal_bytes)", start, end, step).await?;
 
         let mut data: HashMap<String, Vec<(i64, f32)>> = HashMap::new();
         data.insert("memory".to_string(), metrics.data.result[0].values.iter().map(|d| (d.time, d.value.parse::<f32>().unwrap())).collect());

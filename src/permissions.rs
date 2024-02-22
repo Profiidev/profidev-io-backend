@@ -6,6 +6,7 @@ pub(crate) enum Permissions {
   Metrics = 2,
   Cloud = 4,
   Portainer = 8,
+  Database = 16,
 }
 
 pub(crate) fn has_permissions(req: &Request<()> , permissions: i32) -> bool {
