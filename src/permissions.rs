@@ -11,5 +11,5 @@ pub(crate) enum Permissions {
 
 pub(crate) fn has_permissions(req: &Request<()> , permissions: i32) -> bool {
   let req_permissions: i32 = req.header("Permissions").unwrap().as_str().parse().unwrap();
-  req_permissions & permissions == permissions || req_permissions == Permissions::Admin as i32
+  req_permissions & permissions == permissions || (req_permissions & Permissions::Admin as i32) == Permissions::Admin as i32
 }
