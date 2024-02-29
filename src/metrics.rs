@@ -104,8 +104,8 @@ pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
         tide::Body::from_json(&MetricsRes { data })?
       },
       MetricsType::Network => {
-        let incoming = get_metrics::<Metrics<Empty>>("irate(node_network_receive_bytes_total{device!~\"lo\"}[30s])", start, end, step).await?;
-        let outgoing = get_metrics::<Metrics<Empty>>("irate(node_network_transmit_bytes_total{device!~\"lo\"}[30s])", start, end, step).await?;
+        let incoming = get_metrics::<Metrics<Empty>>("irate(node_network_receive_bytes_total{device=\"eth0\"}[30s])", start, end, step).await?;
+        let outgoing = get_metrics::<Metrics<Empty>>("irate(node_network_transmit_bytes_total{device=\"eth0\"}[30s])", start, end, step).await?;
 
         let mut data: HashMap<String, Vec<(i64, f32)>> = HashMap::new();
         data.insert("incoming".to_string(), incoming.data.result[0].values.iter().map(|d| (d.time, d.value.parse::<f32>().unwrap())).collect());
