@@ -133,8 +133,8 @@ pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
 async fn get_metrics<T>(query: &str, start: i64, end: i64, step: i32) -> surf::Result<T> 
 where T: for<'de> Deserialize<'de> {
   let client = Client::new();
-  let start = Utc.timestamp_opt(start, 0).single().unwrap_or_default().with_second(0).unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-  let end = Utc.timestamp_opt(end, 0).single().unwrap_or_default().with_second(0).unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+  let start = Utc.timestamp_millis_opt(start).single().unwrap_or_default().with_second(0).unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+  let end = Utc.timestamp_millis_opt(end).single().unwrap_or_default().with_second(0).unwrap_or_default().format("%Y-%m-%dT%H:%M:%SZ").to_string();
   
   let encoded_query = utf8_percent_encode(query, NON_ALPHANUMERIC).to_string();
   let url = format!("http://{}:9090/api/v1/query_range?query={}&start={}&end={}&step={}m", *crate::METRICS_HOST, encoded_query, start, end, step);
