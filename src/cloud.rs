@@ -55,7 +55,7 @@ pub(crate) async fn get_dir_files(req: Request<()>) -> tide::Result {
   
   let files = match std::fs::read_dir(format!("{}/{}", *crate::CLOUD_DIR, dir)) {
     Ok(f) => f.filter_map(|f| f.ok()).map(|f| CloudFile{name: f.file_name().to_string_lossy().to_string(), dir: f.file_type().unwrap().is_dir()}).collect(),
-    Err(_) => return Ok(tide::Response::new(404)),
+    Err(_) => return Ok(tide::Response::new(410)),
   };
 
   Ok(tide::Response::builder(200).body(tide::Body::from_json(&CloudFiles{files})?).build())
@@ -89,7 +89,7 @@ pub(crate) async fn download_file(req: Request<()>) -> tide::Result {
 
   let data = match async_std::fs::read(format!("{}/{}", *crate::CLOUD_DIR, path)).await {
     Ok(d) => d,
-    Err(_) => return Ok(tide::Response::new(404)),
+    Err(_) => return Ok(tide::Response::new(410)),
   };
   let mut decoder = GzDecoder::new(&data[..]);
   let mut decomp = Vec::new();
