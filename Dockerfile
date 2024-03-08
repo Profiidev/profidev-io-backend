@@ -29,4 +29,6 @@ ENV BINARY_NAME=$BINARY_NAME_DEFAULT
 ENV RUST_LOG="error,$BINARY_NAME=info"
 COPY --from=builder /build-out/$BINARY_NAME /
 
+RUN mkdir /cloud && chown -R dockeruser:dockergrp /cloud
+
 CMD ["/profidev-io-backend"]
