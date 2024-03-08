@@ -12,10 +12,11 @@ struct ResponseData {
 
 #[derive(Deserialize)]
 struct Record {
-  permissions: i32
+  permissions: i32,
+  id: String,
 }
 
-async fn validate_token(token: &str) -> Result<i32, Error> {
+async fn validate_token(token: &str) -> Result<Record, Error> {
   let client = Client::new();
   let req = client.post("https://pocketbase.profidev.io/api/collections/users/auth-refresh");
   let req = req.header(AUTHORIZATION, token);
@@ -25,7 +26,7 @@ async fn validate_token(token: &str) -> Result<i32, Error> {
           Ok(user) => user,
           Err(err) => return Err(err),
         };
-        Ok(record.permissions)
+        Ok(record)
       }
       Err(err) => Err(err),
   }
@@ -38,11 +39,12 @@ impl Middleware<()> for TokenAuth {
             Some(token) => token,
             None => return Ok(Response::new(401)),
         };
-        let permissions = match validate_token(token.as_str()).await {
-            Ok(permissions) => permissions,
+        let record = match validate_token(token.as_str()).await {
+            Ok(record) => record,
             Err(_) => return Ok(Response::new(401)),
         };
-        req.append_header("Permissions", permissions.to_string());
+        req.append_header("Permissions", record.permissions.to_string());
+        req.append_header("User", record.id);
         Ok(next.run(req).await)
     }
 }

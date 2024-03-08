@@ -10,6 +10,7 @@ async-std = { version = "1.12.0", features = ["attributes"] }
 async-trait = "0.1.77"
 chrono = "0.4.34"
 dotenv = "0.15.0"
+flate2 = "1.0.28"
 lazy_static = "1.4.0"
 percent-encoding = "2.3.1"
 serde = "1.0.196"
