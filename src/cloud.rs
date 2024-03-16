@@ -60,11 +60,11 @@ pub(crate) async fn get_dir_files(req: Request<()>) -> tide::Result {
   
   let mut final_files = Vec::new();
   for file in files {
-    if check_access(&req, &format!("{}/{}", dir, file.name.clone()), false, true).await {
+    if check_access(&req, &format!("{}/{}", dir, file.name.clone()), false, true).await || is_admin(&req) {
       final_files.push(CloudFile{
         name: file.name.clone(), 
         dir: file.dir, 
-        write: check_access(&req, &format!("{}/{}", dir, file.name), true, false).await
+        write: check_access(&req, &format!("{}/{}", dir, file.name), true, false).await || is_admin(&req)
       });
     }
   }
