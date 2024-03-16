@@ -18,7 +18,7 @@ struct Record {
 
 async fn validate_token(token: &str) -> Result<Record, Error> {
   let client = Client::new();
-  let req = client.post("https://pocketbase.profidev.io/api/collections/users/auth-refresh");
+  let req = client.post("http://localhost:8090/api/collections/users/auth-refresh");
   let req = req.header(AUTHORIZATION, token);
   match req.send().await {
       Ok(mut res) => {
