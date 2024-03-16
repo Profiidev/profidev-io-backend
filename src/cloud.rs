@@ -179,7 +179,10 @@ async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>, dir: S
     let access = access.iter()
       .filter(|a| file_name_format.starts_with(&a.dir))
       .reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x});
-    if access.is_some() || is_admin {
+    
+    if is_admin {
+      final_files.push(CloudFile{name: file.name, dir: file.dir, write: true});
+    } else if access.is_some(){
       final_files.push(CloudFile{name: file.name, dir: file.dir, write: access.unwrap().write});
     } else {
       let child_access = access.iter()
