@@ -18,7 +18,7 @@ struct Record {
 
 async fn validate_token(token: &str) -> Result<Record, Error> {
   let client = Client::new();
-  let req = client.post("http://localhost:8090/api/collections/users/auth-refresh");
+  let req = client.post(format!("http://{}/api/collections/users/auth-refresh", *crate::PB_URL));
   let req = req.header(AUTHORIZATION, token);
   match req.send().await {
       Ok(mut res) => {

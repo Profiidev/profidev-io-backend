@@ -25,6 +25,7 @@ lazy_static::lazy_static! {
     static ref PB_TOKEN: RwLock<String> = RwLock::new("".to_string());
     static ref PB_EMAIL: String = std::env::var("PB_EMAIL").unwrap_or("".to_string());
     static ref PB_PASSWORD: String = std::env::var("PB_PASSWORD").unwrap_or("".to_string());
+    static ref PB_URL: String = std::env::var("PB_URL").unwrap_or("http://localhost:8090".to_string());
 
     static ref CLOUD_DIR: String = std::env::var("CLOUD_DIR").unwrap_or("cloud".to_string());
 }
