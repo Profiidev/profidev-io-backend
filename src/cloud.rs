@@ -58,16 +58,7 @@ pub(crate) async fn get_dir_files(req: Request<()>) -> tide::Result {
     Err(_) => return Ok(tide::Response::new(410)),
   };
   
-  let mut final_files = Vec::new();
-  for file in files {
-    if check_access(&req, &format!("{}/{}", dir, file.name.clone()), false, true).await || is_admin(&req) {
-      final_files.push(CloudFile{
-        name: file.name.clone(), 
-        dir: file.dir, 
-        write: check_access(&req, &format!("{}/{}", dir, file.name), true, false).await || is_admin(&req)
-      });
-    }
-  }
+  let final_files = check_files_access(&req, files).await;
 
   Ok(tide::Response::builder(200).body(tide::Body::from_json(&CloudFiles{files: final_files})?).build())
 }
@@ -161,21 +152,37 @@ async fn check_permissions(req: &Request<()>, is_dir: bool, write: bool) -> Resu
     path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/")
   };
 
-  if !check_access(&req, &dir, write, false).await && !is_admin(&req) {
+  if !check_access(&req, &dir, write).await && !is_admin(&req) {
     return Err(tide::Response::new(403));
   }
 
   Ok((path, dir))
 }
 
-async fn check_access(req: &Request<()>, dir: &str, write: bool, check_child: bool) -> bool {
+async fn check_access(req: &Request<()>, dir: &str, write: bool) -> bool {
   let user = req.header("User").unwrap().as_str();
   let access = get_collection_records::<Access>("cloud", Some(&format!("user='{}'", user))).await.unwrap();
   access.iter()
     .filter(|&a| !write || a.write == write)
-    .filter(|a| if check_child {a.dir.starts_with(dir)} else {dir.starts_with(&a.dir)})
+    .filter(|a| dir.starts_with(&a.dir))
     .reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x})
     .is_some()
+}
+
+async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>) -> Vec<CloudFile> {
+  let user = req.header("User").unwrap().as_str();
+  let access = get_collection_records::<Access>("cloud", Some(&format!("user='{}'", user))).await.unwrap();
+  let mut final_files = Vec::new();
+  for file in files {
+    if access.iter().filter(|&a| a.dir.starts_with(&file.name)).reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x}).is_some() {
+      final_files.push(CloudFile{
+        name: file.name.clone(), 
+        dir: file.dir, 
+        write: access.iter().filter(|&a| file.name.starts_with(&a.dir)).filter(|&a| a.write).reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x}).is_some()
+      });
+    }
+  }
+  final_files
 }
 
 #[derive(Serialize, Deserialize)]
