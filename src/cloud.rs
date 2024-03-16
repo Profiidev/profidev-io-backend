@@ -48,21 +48,32 @@ pub(crate) async fn update_access(mut req: Request<()>) -> tide::Result {
 }
 
 pub(crate) async fn get_dir_files(req: Request<()>) -> tide::Result {
-  let (dir, _) = match check_permissions(&req, true).await {
-    Ok(p) => p,
-    Err(r) => return Ok(r),
-  };
+  if !has_permissions(&req, Permissions::Cloud as i32) {
+    return Ok(tide::Response::new(403));
+  }
   
-  let files = match std::fs::read_dir(format!("{}/{}", *crate::CLOUD_DIR, dir)) {
-    Ok(f) => f.filter_map(|f| f.ok()).map(|f| CloudFile{name: f.file_name().to_string_lossy().to_string(), dir: f.file_type().unwrap().is_dir()}).collect(),
+  let dir = req.param("path").unwrap_or_default().to_string();
+  let files: Vec<CloudFileTemp> = match std::fs::read_dir(format!("{}/{}", *crate::CLOUD_DIR, dir)) {
+    Ok(f) => f.filter_map(|f| f.ok()).map(|f| CloudFileTemp{name: f.file_name().to_string_lossy().to_string(), dir: f.file_type().unwrap().is_dir()}).collect(),
     Err(_) => return Ok(tide::Response::new(410)),
   };
+  
+  let mut final_files = Vec::new();
+  for file in files {
+    if check_access(&req, &format!("{}/{}", dir, file.name.clone()), false, true).await {
+      final_files.push(CloudFile{
+        name: file.name.clone(), 
+        dir: file.dir, 
+        write: check_access(&req, &format!("{}/{}", dir, file.name), true, false).await
+      });
+    }
+  }
 
-  Ok(tide::Response::builder(200).body(tide::Body::from_json(&CloudFiles{files})?).build())
+  Ok(tide::Response::builder(200).body(tide::Body::from_json(&CloudFiles{files: final_files})?).build())
 }
 
 pub(crate) async fn upload_file(mut req: Request<()>) -> tide::Result {
-  let (path, dir) = match check_permissions(&req, false).await {
+  let (path, dir) = match check_permissions(&req, false, true).await {
     Ok(p) => p,
     Err(r) => return Ok(r),
   };
@@ -82,7 +93,7 @@ pub(crate) async fn upload_file(mut req: Request<()>) -> tide::Result {
 }
 
 pub(crate) async fn download_file(req: Request<()>) -> tide::Result {
-  let (path, _) = match check_permissions(&req, false).await {
+  let (path, _) = match check_permissions(&req, false, false).await {
     Ok(p) => p,
     Err(r) => return Ok(r),
   };
@@ -99,7 +110,7 @@ pub(crate) async fn download_file(req: Request<()>) -> tide::Result {
 }
 
 pub(crate) async fn check_if_exists(req: Request<()>) -> tide::Result {
-  let (path, _) = match check_permissions(&req, false).await {
+  let (path, _) = match check_permissions(&req, false, false).await {
     Ok(p) => p,
     Err(r) => return Ok(r),
   };
@@ -109,7 +120,7 @@ pub(crate) async fn check_if_exists(req: Request<()>) -> tide::Result {
 }
 
 pub(crate) async fn create_dir(req: Request<()>) -> tide::Result {
-  let (path, _) = match check_permissions(&req, false).await {
+  let (path, _) = match check_permissions(&req, false, true).await {
     Ok(p) => p,
     Err(r) => return Ok(r),
   };
@@ -119,7 +130,7 @@ pub(crate) async fn create_dir(req: Request<()>) -> tide::Result {
 }
 
 pub(crate) async fn delete_file(req: Request<()>) -> tide::Result {
-  let (path, _) = match check_permissions(&req, false).await {
+  let (path, _) = match check_permissions(&req, false, true).await {
     Ok(p) => p,
     Err(r) => return Ok(r),
   };
@@ -129,7 +140,7 @@ pub(crate) async fn delete_file(req: Request<()>) -> tide::Result {
 }
 
 pub(crate) async fn delete_dir(req: Request<()>) -> tide::Result {
-  let (path, _) = match check_permissions(&req, true).await {
+  let (path, _) = match check_permissions(&req, true, true).await {
     Ok(p) => p,
     Err(r) => return Ok(r),
   };
@@ -138,7 +149,7 @@ pub(crate) async fn delete_dir(req: Request<()>) -> tide::Result {
   Ok(tide::Response::new(200))
 }
 
-async fn check_permissions(req: &Request<()>, is_dir: bool) -> Result<(String, String), tide::Response> {
+async fn check_permissions(req: &Request<()>, is_dir: bool, write: bool) -> Result<(String, String), tide::Response> {
   if !has_permissions(&req, Permissions::Cloud as i32) {
     return Err(tide::Response::new(403));
   }
@@ -150,17 +161,21 @@ async fn check_permissions(req: &Request<()>, is_dir: bool) -> Result<(String, S
     path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/")
   };
 
-  if !check_access(&req, &dir, true).await && !is_admin(&req) {
+  if !check_access(&req, &dir, write, false).await && !is_admin(&req) {
     return Err(tide::Response::new(403));
   }
 
   Ok((path, dir))
 }
 
-async fn check_access(req: &Request<()>, dir: &str, write: bool) -> bool {
+async fn check_access(req: &Request<()>, dir: &str, write: bool, check_child: bool) -> bool {
   let user = req.header("User").unwrap().as_str();
   let access = get_collection_records::<Access>("cloud", Some(&format!("user='{}'", user))).await.unwrap();
-  access.iter().filter(|&a| !write || a.write == write).any(|a| dir.starts_with(&a.dir))
+  access.iter()
+    .filter(|&a| !write || a.write == write)
+    .filter(|a| if check_child {a.dir.starts_with(dir)} else {dir.starts_with(&a.dir)})
+    .reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x})
+    .is_some()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -197,9 +212,16 @@ struct CloudFiles {
 }
 
 #[derive(Serialize)]
+struct CloudFileTemp {
+  name: String,
+  dir: bool,
+}
+
+#[derive(Serialize, Deserialize)]
 struct CloudFile {
   name: String,
   dir: bool,
+  write: bool,
 }
 
 impl ModifyRecord for AccessUpdate {
