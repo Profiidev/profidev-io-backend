@@ -58,7 +58,7 @@ pub(crate) async fn get_dir_files(req: Request<()>) -> tide::Result {
     Err(_) => return Ok(tide::Response::new(410)),
   };
   
-  let final_files = check_files_access(&req, files).await;
+  let final_files = check_files_access(&req, files, dir).await;
 
   Ok(tide::Response::builder(200).body(tide::Body::from_json(&CloudFiles{files: final_files})?).build())
 }
@@ -169,17 +169,25 @@ async fn check_access(req: &Request<()>, dir: &str, write: bool) -> bool {
     .is_some()
 }
 
-async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>) -> Vec<CloudFile> {
+async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>, dir: String) -> Vec<CloudFile> {
   let user = req.header("User").unwrap().as_str();
   let access = get_collection_records::<Access>("cloud", Some(&format!("user='{}'", user))).await.unwrap();
+  let is_admin = is_admin(&req);
   let mut final_files = Vec::new();
   for file in files {
-    if access.iter().filter(|&a| a.dir.starts_with(&file.name)).reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x}).is_some() {
-      final_files.push(CloudFile{
-        name: file.name.clone(), 
-        dir: file.dir, 
-        write: access.iter().filter(|&a| file.name.starts_with(&a.dir)).filter(|&a| a.write).reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x}).is_some()
-      });
+    let file_name_format = format!("{}/{}", dir, file.name);
+    let access = access.iter()
+      .filter(|a| file_name_format.starts_with(&a.dir))
+      .reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x});
+    if access.is_some() || is_admin {
+      final_files.push(CloudFile{name: file.name, dir: file.dir, write: access.unwrap().write});
+    } else {
+      let child_access = access.iter()
+        .filter(|a| a.dir.starts_with(&file_name_format))
+        .reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x});
+      if child_access.is_some() {
+        final_files.push(CloudFile{name: file.name, dir: file.dir, write: false});
+      }
     }
   }
   final_files
