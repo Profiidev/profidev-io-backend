@@ -65,6 +65,7 @@ async fn main() -> tide::Result<()> {
     app.at("/cloud/files/*path").post(cloud::upload_file);
     app.at("/cloud/files/*path").get(cloud::download_file);
     app.at("/cloud/files/*path").delete(cloud::delete_file);
+    app.at("/cloud/files/*path").patch(cloud::rename_file);
     app.at("/cloud/check/*path").get(cloud::check_if_exists);
 
     app.listen("0.0.0.0:8080").await?;

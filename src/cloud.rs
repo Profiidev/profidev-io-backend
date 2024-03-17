@@ -140,6 +140,18 @@ pub(crate) async fn delete_dir(req: Request<()>) -> tide::Result {
   Ok(tide::Response::new(200))
 }
 
+pub(crate) async fn rename_file(req: Request<()>) -> tide::Result {
+  let (path, _) = match check_permissions(&req, false, true).await {
+    Ok(p) => p,
+    Err(r) => return Ok(r),
+  };
+
+  let new_name = req.param("new_name").unwrap_or_default().to_string();
+  let new_path = format!("{}/{}", path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/"), new_name);
+  async_std::fs::rename(format!("{}/{}", *crate::CLOUD_DIR, path), format!("{}/{}", *crate::CLOUD_DIR, new_path)).await?;
+  Ok(tide::Response::new(200))
+}
+
 async fn check_permissions(req: &Request<()>, is_dir: bool, write: bool) -> Result<(String, String), tide::Response> {
   if !has_permissions(&req, Permissions::Cloud as i32) {
     return Err(tide::Response::new(403));

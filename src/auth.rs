@@ -43,8 +43,8 @@ impl Middleware<()> for TokenAuth {
             Ok(record) => record,
             Err(_) => return Ok(Response::new(401)),
         };
-        req.append_header("Permissions", record.permissions.to_string());
-        req.append_header("User", record.id);
+        req.insert_header("Permissions", record.permissions.to_string());
+        req.insert_header("User", record.id);
         Ok(next.run(req).await)
     }
 }
