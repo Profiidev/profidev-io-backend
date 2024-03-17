@@ -176,7 +176,7 @@ async fn check_access(req: &Request<()>, dir: &str, write: bool) -> bool {
   let access = get_collection_records::<Access>("cloud", Some(&format!("user='{}'", user))).await.unwrap();
   access.iter()
     .filter(|&a| !write || a.write == write)
-    .filter(|a| dir.starts_with(&a.dir))
+    .filter(|a| dir.starts_with(&format!("{}/", a.dir)) || dir == a.dir)
     .reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x})
     .is_some()
 }
@@ -189,7 +189,7 @@ async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>, dir: S
   for file in files {
     let file_name_format = format!("{}/{}", dir, file.name);
     let access = access.iter()
-      .filter(|a| file_name_format.starts_with(&a.dir))
+      .filter(|a| file_name_format.starts_with(&format!("{}/", a.dir)) || file_name_format == a.dir)
       .reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x});
     
     if is_admin {
@@ -198,7 +198,7 @@ async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>, dir: S
       final_files.push(CloudFile{name: file.name, dir: file.dir, write: access.unwrap().write});
     } else {
       let child_access = access.iter()
-        .filter(|a| a.dir.starts_with(&file_name_format))
+        .filter(|a| a.dir.starts_with(&format!("{}/", file_name_format)) || a.dir == file_name_format)
         .reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x});
       if child_access.is_some() {
         final_files.push(CloudFile{name: file.name, dir: file.dir, write: false});
