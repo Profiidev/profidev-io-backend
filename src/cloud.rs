@@ -187,7 +187,11 @@ async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>, dir: S
   let is_admin = is_admin(&req);
   let mut final_files = Vec::new();
   for file in files {
-    let file_name_format = format!("{}/{}", dir, file.name);
+    let file_name_format = if dir.is_empty() {
+      file.name.clone()
+    } else {
+      format!("{}/{}", dir, file.name)
+    };
     let access = access.iter()
       .filter(|a| file_name_format.starts_with(&format!("{}/", a.dir)) || file_name_format == a.dir)
       .reduce(|a, x| if a.dir.len() > x.dir.len() {a} else {x});
