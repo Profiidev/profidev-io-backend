@@ -1,9 +1,10 @@
-use std::io::{Read, Write};
+use std::{fs::File, io::{Cursor, Error, Read, Write}};
 
 use async_std::io::ReadExt;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde::{Deserialize, Serialize};
 use tide::Request;
+use zip::ZipWriter;
 
 use crate::{db::{create_record, delete_record, get_collection_records, modify_record, ModifyRecord}, permissions::{has_permissions, is_admin, Permissions}};
 
@@ -73,8 +74,12 @@ pub(crate) async fn upload_file(mut req: Request<()>) -> tide::Result {
   let mut data = Vec::new();
   file.read_to_end(&mut data).await?;
 
+  let mut decoder = GzDecoder::new(&data[..]);
+  let mut decomp = Vec::new();
+  decoder.read_to_end(&mut decomp).unwrap();
+
   let mut encoder = GzEncoder::new(Vec::new(), Compression::new(4));
-  encoder.write_all(&data).unwrap();
+  encoder.write_all(&decomp).unwrap();
   let comp = encoder.finish().unwrap();
 
   async_std::fs::create_dir_all(format!("{}/{}", *crate::CLOUD_DIR, dir)).await?;
@@ -93,11 +98,33 @@ pub(crate) async fn download_file(req: Request<()>) -> tide::Result {
     Ok(d) => d,
     Err(_) => return Ok(tide::Response::new(410)),
   };
-  let mut decoder = GzDecoder::new(&data[..]);
-  let mut decomp = Vec::new();
-  decoder.read_to_end(&mut decomp).unwrap();  
 
-  Ok(tide::Response::builder(200).body(decomp).build())
+  Ok(tide::Response::builder(200).body(data).build())
+}
+
+pub(crate) async fn download_multiple(mut req: Request<()>) -> tide::Result {
+  let (path, _) = match check_permissions(&req, false, false).await {
+    Ok(p) => p,
+    Err(r) => return Ok(r),
+  };
+
+  let files: Vec<String> = req.body_json().await?;
+  let path = format!("{}/{}", *crate::CLOUD_DIR, path);
+  let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+  for file_name in files {
+    let mut file = File::open(format!("{}/{}", path, file_name))?;
+    if file.metadata()?.is_dir() {
+      get_files_from_folder(&path, &file_name, &mut zip)?;
+    } else {
+      zip.start_file(file_name, Default::default())?;
+      std::io::copy(&mut file, &mut zip)?;
+    }
+  }
+  let res = zip.finish()?;
+  let comp = res.get_ref().to_vec();
+
+  Ok(tide::Response::builder(200).body(comp).header("Content-Type", "application/zip").header("Content-Disposition", "attachment; filename=files.zip").build())
+
 }
 
 pub(crate) async fn check_if_exists(req: Request<()>) -> tide::Result {
@@ -142,6 +169,18 @@ pub(crate) async fn delete_dir(req: Request<()>) -> tide::Result {
 
 pub(crate) async fn rename_file(req: Request<()>) -> tide::Result {
   let (path, _) = match check_permissions(&req, false, true).await {
+    Ok(p) => p,
+    Err(r) => return Ok(r),
+  };
+
+  let new_name = req.param("new_name").unwrap_or_default().to_string();
+  let new_path = format!("{}/{}", path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/"), new_name);
+  async_std::fs::rename(format!("{}/{}", *crate::CLOUD_DIR, path), format!("{}/{}", *crate::CLOUD_DIR, new_path)).await?;
+  Ok(tide::Response::new(200))
+}
+
+pub(crate) async fn rename_dir(req: Request<()>) -> tide::Result {
+  let (path, _) = match check_permissions(&req, true, true).await {
     Ok(p) => p,
     Err(r) => return Ok(r),
   };
@@ -210,6 +249,25 @@ async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>, dir: S
     }
   }
   final_files
+}
+
+fn get_files_from_folder(dir_path: &str, relative_path: &str, zip: &mut ZipWriter<Cursor<Vec<u8>>>) -> Result<(), Error> {
+  let dir = std::fs::read_dir(format!("{}/{}", dir_path, relative_path))?;
+  for entry in dir {
+    let entry = entry?;
+    let path = entry.path();
+    let relative_path = path.strip_prefix(relative_path).unwrap().to_str().unwrap();
+    if path.is_dir() {
+      zip.add_directory(relative_path, Default::default())?;
+      get_files_from_folder(dir_path, relative_path, zip)?;
+    } else {
+      let mut file = File::open(&path)?;
+      zip.start_file(relative_path, Default::default())?;
+      std::io::copy(&mut file, zip)?;
+    }
+  }
+
+  Ok(())
 }
 
 #[derive(Serialize, Deserialize)]
