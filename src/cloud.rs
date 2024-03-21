@@ -263,8 +263,15 @@ fn get_files_from_folder(dir_path: &str, relative_path: &str, zip: &mut ZipWrite
       get_files_from_folder(dir_path, relative_path, zip)?;
     } else {
       let mut file = File::open(&path)?;
+      let mut data = Vec::new();
+      file.read_to_end(&mut data)?;
+      let mut decoder = GzDecoder::new(&data[..]);
+      let mut decomp = Vec::new();
+      decoder.read_to_end(&mut decomp).unwrap();
+      let mut cursor = Cursor::new(decomp);
+      
       zip.start_file(relative_path, Default::default())?;
-      std::io::copy(&mut file, zip)?;
+      std::io::copy(&mut cursor, zip)?;
     }
   }
 
