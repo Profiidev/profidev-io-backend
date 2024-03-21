@@ -59,6 +59,7 @@ async fn main() -> tide::Result<()> {
     app.at("/cloud/access").delete(cloud::delete_access);
     app.at("/cloud/access").patch(cloud::update_access);
     app.at("/cloud/dirs").get(cloud::get_dir_files);
+    app.at("/cloud/dirs").put(cloud::download_multiple);
     app.at("/cloud/dirs/*path").get(cloud::get_dir_files);
     app.at("/cloud/dirs/*path").post(cloud::create_dir);
     app.at("/cloud/dirs/*path").delete(cloud::delete_dir);

@@ -2,6 +2,7 @@ use std::{fs::File, io::{Cursor, Error, Read, Write}};
 
 use async_std::io::ReadExt;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
+use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use tide::Request;
 use zip::ZipWriter;
@@ -53,7 +54,7 @@ pub(crate) async fn get_dir_files(req: Request<()>) -> tide::Result {
     return Ok(tide::Response::new(403));
   }
   
-  let dir = req.param("path").unwrap_or_default().to_string();
+  let dir = percent_decode_str(req.param("path").unwrap_or_default()).decode_utf8_lossy().to_string();
   let files: Vec<CloudFileTemp> = match std::fs::read_dir(format!("{}/{}", *crate::CLOUD_DIR, dir)) {
     Ok(f) => f.filter_map(|f| f.ok()).map(|f| CloudFileTemp{name: f.file_name().to_string_lossy().to_string(), dir: f.file_type().unwrap().is_dir()}).collect(),
     Err(_) => return Ok(tide::Response::new(410)),
@@ -196,7 +197,7 @@ async fn check_permissions(req: &Request<()>, is_dir: bool, write: bool) -> Resu
     return Err(tide::Response::new(403));
   }
 
-  let path = req.param("path").unwrap_or_default().to_string();
+  let path = percent_decode_str(req.param("path").unwrap_or_default()).decode_utf8_lossy().to_string();
   let dir = if is_dir {
     path.clone()
   } else {
