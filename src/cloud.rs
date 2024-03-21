@@ -257,7 +257,7 @@ fn get_files_from_folder(dir_path: &str, relative_path: &str, zip: &mut ZipWrite
   for entry in dir {
     let entry = entry?;
     let path = entry.path();
-    let relative_path = path.strip_prefix(relative_path).unwrap().to_str().unwrap();
+    let relative_path = path.strip_prefix(dir_path).unwrap().to_str().unwrap();
     if path.is_dir() {
       zip.add_directory(relative_path, Default::default())?;
       get_files_from_folder(dir_path, relative_path, zip)?;
