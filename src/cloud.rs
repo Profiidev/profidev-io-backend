@@ -138,6 +138,28 @@ pub(crate) async fn check_if_exists(req: Request<()>) -> tide::Result {
   Ok(tide::Response::builder(200).body(tide::Body::from_json(&exists)?).build())
 }
 
+pub(crate) async fn check_if_exists_multiple(mut req: Request<()>) -> tide::Result {
+  let (_, dir) = match check_permissions(&req, true, false).await {
+    Ok(p) => p,
+    Err(r) => return Ok(r),
+  };
+
+  let files: Vec<String> = req.body_json().await?;
+  let temp = files.iter().map(|f| CloudFileTemp{name: f.clone(), dir: false}).collect();
+  let cloud = check_files_access(&req, temp, dir.clone()).await;
+
+  let mut exists = Vec::new();
+  for file in cloud {
+    exists.push(async_std::fs::metadata(format!("{}/{}/{}", *crate::CLOUD_DIR, dir, file.name)).await.is_ok());
+  }
+
+  if exists.iter().all(|&x| x) {
+    Ok(tide::Response::new(200))
+  } else {
+    Ok(tide::Response::new(410))
+  }
+}
+
 pub(crate) async fn create_dir(req: Request<()>) -> tide::Result {
   let (path, _) = match check_permissions(&req, false, true).await {
     Ok(p) => p,
