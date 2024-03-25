@@ -71,7 +71,7 @@ async fn main() -> tide::Result<()> {
     app.at("/cloud/files/*path").patch(cloud::rename_file);
     app.at("/cloud/check/*path").get(cloud::check_if_exists);
     app.at("/cloud/check_multiple").post(cloud::check_if_exists_multiple);
-    app.at("/cloud/check_multiple/*path").delete(cloud::check_if_exists_multiple);
+    app.at("/cloud/check_multiple/*path").post(cloud::check_if_exists_multiple);
 
     app.listen("0.0.0.0:8080").await?;
     Ok(())
