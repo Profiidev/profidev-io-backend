@@ -153,11 +153,7 @@ pub(crate) async fn check_if_exists_multiple(mut req: Request<()>) -> tide::Resu
     exists.push(async_std::fs::metadata(format!("{}/{}/{}", *crate::CLOUD_DIR, dir, file.name)).await.is_ok());
   }
 
-  if exists.iter().all(|&x| x) {
-    Ok(tide::Response::new(200))
-  } else {
-    Ok(tide::Response::new(410))
-  }
+  Ok(tide::Response::builder(200).body(tide::Body::from_json(&Exists{ count: exists.len() as i32 })?).build())
 }
 
 pub(crate) async fn create_dir(req: Request<()>) -> tide::Result {
@@ -344,6 +340,11 @@ struct CloudFile {
   name: String,
   dir: bool,
   write: bool,
+}
+
+#[derive(Serialize)]
+struct Exists {
+  count: i32,
 }
 
 impl ModifyRecord for AccessUpdate {
