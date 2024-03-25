@@ -148,10 +148,16 @@ pub(crate) async fn check_if_exists_multiple(mut req: Request<()>) -> tide::Resu
   let temp = files.iter().map(|f| CloudFileTemp{name: f.clone(), dir: false}).collect();
   let cloud = check_files_access(&req, temp, dir.clone()).await;
 
+  let parrent_dir = if dir.is_empty() {
+    format!("{}", *crate::CLOUD_DIR)
+  } else {
+    format!("{}/{}", *crate::CLOUD_DIR, dir)
+  };
   let mut exists = Vec::new();
   for file in cloud {
-    exists.push(async_std::fs::metadata(format!("{}/{}/{}", *crate::CLOUD_DIR, dir, file.name)).await.is_ok());
+    exists.push(async_std::fs::metadata(format!("{}/{}", parrent_dir, file.name)).await.is_ok());
   }
+  exists.retain(|&e| e);
 
   Ok(tide::Response::builder(200).body(tide::Body::from_json(&Exists{ count: exists.len() as i32 })?).build())
 }
