@@ -28,6 +28,7 @@ lazy_static::lazy_static! {
     static ref PB_URL: String = std::env::var("PB_URL").unwrap_or("localhost:8090".to_string());
 
     static ref CLOUD_DIR: String = std::env::var("CLOUD_DIR").unwrap_or("cloud".to_string());
+    static ref CLOUD_URL: String = std::env::var("CLOUD_URL").unwrap_or("https://api.profidev.io/cloud/direct".to_string());
 }
 
 #[async_std::main]
@@ -72,6 +73,8 @@ async fn main() -> tide::Result<()> {
     app.at("/cloud/check/*path").get(cloud::check_if_exists);
     app.at("/cloud/check_multiple").post(cloud::check_if_exists_multiple);
     app.at("/cloud/check_multiple/*path").post(cloud::check_if_exists_multiple);
+    app.at("/cloud/direct/*path").post(cloud::create_direct_link);
+    app.at("/cloud/direct/:uuid").get(cloud::get_direct_link);
 
     app.listen("0.0.0.0:8080").await?;
     Ok(())

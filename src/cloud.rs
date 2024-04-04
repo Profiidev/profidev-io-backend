@@ -75,12 +75,8 @@ pub(crate) async fn upload_file(mut req: Request<()>) -> tide::Result {
   let mut data = Vec::new();
   file.read_to_end(&mut data).await?;
 
-  let mut decoder = GzDecoder::new(&data[..]);
-  let mut decomp = Vec::new();
-  decoder.read_to_end(&mut decomp).unwrap();
-
   let mut encoder = GzEncoder::new(Vec::new(), Compression::new(4));
-  encoder.write_all(&decomp).unwrap();
+  encoder.write_all(&data).unwrap();
   let comp = encoder.finish().unwrap();
 
   async_std::fs::create_dir_all(format!("{}/{}", *crate::CLOUD_DIR, dir)).await?;
@@ -100,7 +96,11 @@ pub(crate) async fn download_file(req: Request<()>) -> tide::Result {
     Err(_) => return Ok(tide::Response::new(410)),
   };
 
-  Ok(tide::Response::builder(200).body(data).build())
+  let mut decoder = GzDecoder::new(&data[..]);
+  let mut decomp = Vec::new();
+  decoder.read_to_end(&mut decomp).unwrap();
+
+  Ok(tide::Response::builder(200).body(decomp).build())
 }
 
 pub(crate) async fn download_multiple(mut req: Request<()>) -> tide::Result {
@@ -110,19 +110,7 @@ pub(crate) async fn download_multiple(mut req: Request<()>) -> tide::Result {
   };
 
   let files: Vec<String> = req.body_json().await?;
-  let path = format!("{}/{}", *crate::CLOUD_DIR, path);
-  let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-  for file_name in files {
-    let mut file = File::open(format!("{}/{}", path, file_name))?;
-    if file.metadata()?.is_dir() {
-      get_files_from_folder(&path, &file_name, &mut zip)?;
-    } else {
-      zip.start_file(file_name, Default::default())?;
-      std::io::copy(&mut file, &mut zip)?;
-    }
-  }
-  let res = zip.finish()?;
-  let comp = res.get_ref().to_vec();
+  let comp = pack_zip(&path, files)?;
 
   Ok(tide::Response::builder(200).body(comp).header("Content-Type", "application/zip").header("Content-Disposition", "attachment; filename=files.zip").build())
 
@@ -216,6 +204,55 @@ pub(crate) async fn rename_dir(req: Request<()>) -> tide::Result {
   Ok(tide::Response::new(200))
 }
 
+pub(crate) async fn create_direct_link(req: Request<()>) -> tide::Result {
+  let (path, _) = match check_permissions(&req, false, true).await {
+    Ok(p) => p,
+    Err(r) => return Ok(r),
+  };
+
+  let direct_link = get_collection_records::<DirectLink>("direct_cloud", Some(&format!("path='{}'", path))).await?;
+  if !direct_link.is_empty() {
+    let link = format!("{}/{}", *crate::CLOUD_URL, direct_link[0].uuid);
+    return Ok(tide::Response::builder(200).body(tide::Body::from_json(&link)?).build());
+  }
+  
+  let random = rand::random::<u128>();
+  let link = format!("{}/{}", *crate::CLOUD_URL, random);
+  let direct_link = DirectLink{uuid: random.to_string(), path};
+
+  create_record("direct_cloud", direct_link).await?;
+
+  Ok(tide::Response::builder(200).body(tide::Body::from_json(&link)?).build())
+}
+
+pub(crate) async fn get_direct_link(req: Request<()>) -> tide::Result {
+  let uuid = req.param("uuid").unwrap_or_default().parse::<u128>().unwrap();
+  let direct_link = get_collection_records::<DirectLink>("direct_cloud", Some(&format!("uuid=\"{}\"", uuid))).await?;
+  if direct_link.is_empty() {
+    return Ok(tide::Response::new(404));
+  }
+
+  let path = format!("{}/{}", *crate::CLOUD_DIR, direct_link[0].path);
+  let mut file_name = path.clone().split('/').last().unwrap().to_string();
+  let mut file = File::open(&path)?;
+  let decomp = if file.metadata()?.is_dir() {
+    let dir = std::fs::read_dir(path)?;
+    let files: Vec<String> = dir.filter_map(|f| f.ok()).map(|f| f.file_name().to_string_lossy().to_string()).collect();
+    file_name = format!("{}.zip", file_name);
+    pack_zip(&direct_link[0].path, files)?
+  } else {
+    let mut data = Vec::new();
+    file.read_to_end(&mut data)?;
+
+    let mut decoder = GzDecoder::new(&data[..]);
+    let mut decomp = Vec::new();
+    decoder.read_to_end(&mut decomp).unwrap();
+    decomp
+  };
+
+  Ok(tide::Response::builder(200).body(decomp).header("Content-Disposition", format!("attachment; filename={}", file_name)).build())
+}
+
 async fn check_permissions(req: &Request<()>, is_dir: bool, write: bool) -> Result<(String, String), tide::Response> {
   if !has_permissions(&req, Permissions::Cloud as i32) {
     return Err(tide::Response::new(403));
@@ -274,6 +311,22 @@ async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>, dir: S
     }
   }
   final_files
+}
+
+fn pack_zip(path: &str, files: Vec<String>) -> Result<Vec<u8>, Error> {
+  let path = format!("{}/{}", *crate::CLOUD_DIR, path);
+  let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+  for file_name in files {
+    let mut file = File::open(format!("{}/{}", path, file_name))?;
+    if file.metadata()?.is_dir() {
+      get_files_from_folder(&path, &file_name, &mut zip)?;
+    } else {
+      zip.start_file(file_name, Default::default())?;
+      std::io::copy(&mut file, &mut zip)?;
+    }
+  }
+  let res = zip.finish()?;
+  Ok(res.get_ref().to_vec())
 }
 
 fn get_files_from_folder(dir_path: &str, relative_path: &str, zip: &mut ZipWriter<Cursor<Vec<u8>>>) -> Result<(), Error> {
@@ -351,6 +404,12 @@ struct CloudFile {
 #[derive(Serialize)]
 struct Exists {
   count: i32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DirectLink {
+  uuid: String,
+  path: String,
 }
 
 impl ModifyRecord for AccessUpdate {

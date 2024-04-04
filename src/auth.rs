@@ -18,7 +18,7 @@ struct Record {
 
 async fn validate_token(token: &str) -> Result<Record, Error> {
   let client = Client::new();
-  let req = client.post(format!("http://{}/api/collections/users/auth-refresh", *crate::PB_URL));
+  let req = client.post(format!("{}/api/collections/users/auth-refresh", *crate::PB_URL));
   let req = req.header(AUTHORIZATION, token);
   match req.send().await {
       Ok(mut res) => {
@@ -35,6 +35,10 @@ async fn validate_token(token: &str) -> Result<Record, Error> {
 #[async_trait]
 impl Middleware<()> for TokenAuth {
     async fn handle(&self, mut req: Request<()>, next: Next<'_, ()>) -> tide::Result {
+        if req.url().path().starts_with("/cloud/direct/") && req.method() == tide::http::Method::Get {
+            return Ok(next.run(req).await);
+        }
+
         let token = match req.header("Authorization") {
             Some(token) => token,
             None => return Ok(Response::new(401)),
