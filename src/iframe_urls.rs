@@ -7,7 +7,7 @@ pub(crate) async fn get_portainer_url(req: Request<()>) -> tide::Result {
     return Ok(tide::Response::new(403));
   }
   
-  return_url(&*crate::PORTAINER_URL)
+  return_url(&crate::PORTAINER_URL)
 }
 
 pub(crate) async fn get_pocketbase_url(req: Request<()>) -> tide::Result {
@@ -15,7 +15,7 @@ pub(crate) async fn get_pocketbase_url(req: Request<()>) -> tide::Result {
     return Ok(tide::Response::new(403));
   }
   
-  return_url(&*crate::POCKETBASE_URL)
+  return_url(&crate::POCKETBASE_URL)
 }
 
 fn return_url(url: &str) -> tide::Result {

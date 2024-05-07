@@ -31,6 +31,8 @@ jobs:
             file: ./Dockerfile
             push: true
             tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:latest
+            cache-from: type=gha
+            cache-to: type=gha,mode=max
 
         - name: Update via Webhook
           uses: newarifrh/portainer-service-webhook@v1

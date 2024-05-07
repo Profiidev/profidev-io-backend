@@ -137,7 +137,7 @@ pub(crate) async fn check_if_exists_multiple(mut req: Request<()>) -> tide::Resu
   let cloud = check_files_access(&req, temp, dir.clone()).await;
 
   let parrent_dir = if dir.is_empty() {
-    format!("{}", *crate::CLOUD_DIR)
+    crate::CLOUD_DIR.clone()
   } else {
     format!("{}/{}", *crate::CLOUD_DIR, dir)
   };
@@ -254,7 +254,7 @@ pub(crate) async fn get_direct_link(req: Request<()>) -> tide::Result {
 }
 
 async fn check_permissions(req: &Request<()>, is_dir: bool, write: bool) -> Result<(String, String), tide::Response> {
-  if !has_permissions(&req, Permissions::Cloud as i32) {
+  if !has_permissions(req, Permissions::Cloud as i32) {
     return Err(tide::Response::new(403));
   }
 
@@ -265,7 +265,7 @@ async fn check_permissions(req: &Request<()>, is_dir: bool, write: bool) -> Resu
     path.split('/').take(path.split('/').count() - 1).collect::<Vec<&str>>().join("/")
   };
 
-  if !check_access(&req, &dir, write).await && !is_admin(&req) {
+  if !check_access(req, &dir, write).await && !is_admin(req) {
     return Err(tide::Response::new(403));
   }
 
@@ -285,7 +285,7 @@ async fn check_access(req: &Request<()>, dir: &str, write: bool) -> bool {
 async fn check_files_access(req: &Request<()>, files: Vec<CloudFileTemp>, dir: String) -> Vec<CloudFile> {
   let user = req.header("User").unwrap().as_str();
   let access = get_collection_records::<Access>("cloud", Some(&format!("user='{}'", user))).await.unwrap();
-  let is_admin = is_admin(&req);
+  let is_admin = is_admin(req);
   let mut final_files = Vec::new();
   for file in files {
     let file_name_format = if dir.is_empty() {

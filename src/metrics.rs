@@ -47,7 +47,7 @@ struct Data {
 }
 
 #[derive(Deserialize, Debug)]
-struct CPU {
+struct CPUInfo {
   cpu: String,
 }
 
@@ -71,7 +71,7 @@ pub(crate) async fn metrics(mut req: Request<()>) -> tide::Result {
 
     let body = match metrics {
       MetricsType::Cpu => {
-        let metrics = get_metrics::<Metrics<CPU>>("sum by (cpu) (irate(node_cpu_seconds_total{job=\"node\", mode!=\"idle\"}[30s])) * 100", start, end, step).await?;
+        let metrics = get_metrics::<Metrics<CPUInfo>>("sum by (cpu) (irate(node_cpu_seconds_total{job=\"node\", mode!=\"idle\"}[30s])) * 100", start, end, step).await?;
         
         let mut cores: HashMap<String, Vec<(i64, f32)>> = HashMap::new();
         for core in metrics.data.result {
@@ -141,5 +141,5 @@ where T: for<'de> Deserialize<'de> {
   
   let mut res = client.get(url).await?;
   
-  Ok(res.body_json().await?)
+  res.body_json().await
 }

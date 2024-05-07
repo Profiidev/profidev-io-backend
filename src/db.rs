@@ -14,7 +14,7 @@ pub(crate) async fn get_collection_records<T>(collection: &str, filter: Option<&
 
   let client = Client::new();
   let res = client.get(format!("{}/api/collections/{}/records?perPage=100{}", *crate::PB_URL, collection, filter))
-    .header("Authorization", format!("{}", *crate::PB_TOKEN.read().await))
+    .header("Authorization", crate::PB_TOKEN.read().await.clone())
     .recv_json::<RecordsResponse<T>>().await?;
 
   Ok(res.items)
@@ -23,7 +23,7 @@ pub(crate) async fn get_collection_records<T>(collection: &str, filter: Option<&
 pub(crate) async fn create_record<T>(collection: &str, new_record: T) -> Result<()> where T: Serialize {
   let client = Client::new();
   client.post(format!("{}/api/collections/{}/records", *crate::PB_URL, collection))
-    .header("Authorization", format!("{}", *crate::PB_TOKEN.read().await))
+    .header("Authorization", crate::PB_TOKEN.read().await.clone())
     .body_json(&new_record).unwrap().await?;
 
   Ok(())
@@ -32,7 +32,7 @@ pub(crate) async fn create_record<T>(collection: &str, new_record: T) -> Result<
 pub(crate) async fn delete_record(collection: &str, delete_record_id: String) -> Result<()> {
   let client = Client::new();
   client.delete(format!("{}/api/collections/{}/records/{}", *crate::PB_URL, collection, delete_record_id))
-    .header("Authorization", format!("{}", *crate::PB_TOKEN.read().await))
+    .header("Authorization", crate::PB_TOKEN.read().await.clone())
     .send().await?;
 
   Ok(())
@@ -41,7 +41,7 @@ pub(crate) async fn delete_record(collection: &str, delete_record_id: String) ->
 pub(crate) async fn modify_record<T>(collection: &str, modify_record: T) -> Result<()> where T: Serialize + ModifyRecord {
   let client = Client::new();
   client.patch(format!("{}/api/collections/{}/records/{}", *crate::PB_URL, collection, modify_record.id()))
-    .header("Authorization", format!("{}", *crate::PB_TOKEN.read().await))
+    .header("Authorization", crate::PB_TOKEN.read().await.clone())
     .body_json(&modify_record).unwrap().await?;
 
   Ok(())

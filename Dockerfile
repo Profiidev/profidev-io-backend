@@ -1,19 +1,26 @@
 ARG BINARY_NAME_DEFAULT=profidev-io-backend
+ARG TARGET=x86_64-unknown-linux-musl
 
-FROM clux/muslrust:stable as builder
+FROM clux/muslrust:stable as chef
+RUN cargo install cargo-chef
+WORKDIR /app
+
+FROM chef as planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef as builder
 
 ARG BINARY_NAME_DEFAULT
+ARG TARGET
 ENV BINARY_NAME=$BINARY_NAME_DEFAULT
+ENV TARGET=$TARGET
 
-COPY Cargo.lock .
-COPY Cargo.toml .
-RUN mkdir src \
-    && echo "fn main() {print!(\"Dummy main\");} // dummy file" > src/main.rs
-RUN set -x && cargo build --target x86_64-unknown-linux-musl --release
-RUN ["/bin/bash", "-c", "set -x && rm -r target/x86_64-unknown-linux-musl/release/deps/${BINARY_NAME//-/_}*"]
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --target $TARGET --recipe-path recipe.json
+COPY . .
+RUN cargo build --release --target $TARGET
 
-COPY src ./src
-RUN set -x && cargo build --target x86_64-unknown-linux-musl --release
 RUN mkdir -p /build-out
 RUN set -x && cp target/x86_64-unknown-linux-musl/release/$BINARY_NAME /build-out/
 RUN mkdir /cloud

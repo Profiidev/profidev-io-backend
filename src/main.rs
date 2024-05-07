@@ -43,7 +43,7 @@ async fn main() -> tide::Result<()> {
     let cors = CorsMiddleware::new()
         .allow_origin(Origin::from("*"))
         .allow_methods("GET, POST, OPTIONS, PUT, DELETE, PATCH".parse::<HeaderValue>().unwrap());
-        
+
     let mut app = tide::new();
 
     app.with(cors).with(TokenAuth{});
