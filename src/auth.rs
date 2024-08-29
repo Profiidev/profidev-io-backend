@@ -39,6 +39,10 @@ impl Middleware<()> for TokenAuth {
             return Ok(next.run(req).await);
         }
 
+        if req.url().path().starts_with("/images/apod/direct/") && req.method() == tide::http::Method::Get {
+            return Ok(next.run(req).await);
+        }
+
         let token = match req.header("Authorization") {
             Some(token) => token,
             None => return Ok(Response::new(401)),

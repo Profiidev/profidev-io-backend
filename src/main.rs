@@ -53,6 +53,7 @@ async fn main() -> tide::Result<()> {
     app.at("/users").delete(users::delete_user);
     app.at("/users").patch(users::update_user);
     app.at("/images/apod").get(images::apod);
+    app.at("/images/apod/direct/:token").get(images::apod_direct);
     app.at("/iframe/portainer").get(iframe_urls::get_portainer_url);
     app.at("/iframe/pocketbase").get(iframe_urls::get_pocketbase_url);
     app.at("/cloud/access").get(cloud::get_access);
